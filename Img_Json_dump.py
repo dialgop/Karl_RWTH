@@ -10,6 +10,24 @@ import sys
 import json
 import re
 import yaml
+import numpy as np
+from collections import OrderedDict
+
+#Creating an unordered dictionary and adding it to the yaml representer
+
+def represent_ordereddict(dumper, data):
+    value = []
+
+    for item_key, item_value in data.items():
+        node_key = dumper.represent_data(item_key)
+        node_value = dumper.represent_data(item_value)
+
+        value.append((node_key, node_value))
+
+    return yaml.nodes.MappingNode(u'tag:yaml.org,2002:map', value)
+
+yaml.add_representer(OrderedDict, represent_ordereddict)
+
 
 #To save depth images without losing values due to png
 
@@ -42,6 +60,7 @@ for i, entry in enumerate(db.find()):
 
 			img_rgb = CvBridge().imgmsg_to_cv2(message.ubd_rgb[arrayPosition])
 			img_d = CvBridge().imgmsg_to_cv2(message.ubd_d[arrayPosition])
+
 			sys.stdout.write('\r{}/{} ({:.2%})'.format(i, nimg, float(i)/(nimg-1)))
 			sys.stdout.flush()
 
@@ -50,20 +69,26 @@ for i, entry in enumerate(db.find()):
 				out = "full_" + out
 			cv2.imwrite(out, img_rgb)
 
-			out = "{}-{}-d.yaml".format(message.header.stamp, arrayPosition) #the name of the depth image file to be dumped
+			out_d = "{}-{}-d.yml".format(message.header.stamp, arrayPosition) #the name of the depth image file to be dumped
 			if img_d.shape[0] == 480:
 				out = "full_" + out
 
 			#dumping image in a YAML file based on the Numpy array created from the image conversion
+
+			depthSizeImg = img_d.shape[:2]
+			ymlList = np.ravel(np.asarray(img_d))
 			
-			with open(out, 'w') as f:
-			yaml.dump(img_d.tolist(), f) 
+			text = ("%YAML:1.0\ndepth: !!opencv-matrix\n   rows: {}\n   cols: {}\n   dt: {}\n   data: ").format(depthSizeImg[0],depthSizeImg[1], type(img_d[0][0]))
+			f = open(out_d, 'a')
+			f.write(text)
+			yaml.dump(ymlList.tolist(), text_file, indent = 8)
+			f.close()
 
 			#The modified and improved Json Format
 
 			outInJson = "{}_{}.json".format(message.header.stamp, arrayPosition) #the Json file.
 
-			jsonDocument = json.dumps({'robot':{'position': {'x':message.robot.position.x, 'y':message.robot.position.y,'z':message.robot.position.z}, 'orientation':{'x':message.robot.orientation.x, 'y':message.robot.orientation.y,'z':message.robot.orientation.z, 'w':message.robot.orientation.w}}, 'ubd_pos': {'x': message.ubd_pos[arrayPosition].x, 'y': message.ubd_pos[arrayPosition].y, 'z': message.ubd_pos[arrayPosition].z}, 'median_depth': message.ubd.median_depth[arrayPosition]})
+			jsonDocument = json.dumps({'robot':{'position': {'x':message.robot.position.x, 'y':message.robot.position.y,'z':message.robot.position.z}, 'orientation':{'x':message.robot.orientation.x, 'y':message.robot.orientation.y,'z':message.robot.orientation.z, 'w':message.robot.orientation.w}}, 'ubd_pos': {'x': message.ubd_pos[arrayPosition].x, 'y': message.ubd_pos[arrayPosition].y, 'z': message.ubd_pos[arrayPosition].z}, 'median_depth': message.ubd.median_depth[arrayPosition]}, indent = 2)
 
 			text_file = open(outInJson, "w")
 			text_file.write(jsonDocument)
@@ -71,6 +96,4 @@ for i, entry in enumerate(db.find()):
 
 			arrayPosition+=1 #Python has no i++
 
-print
 
-#db.upper_bodies.mapReduce(function(){emit(this._id,this.ubd_rgb);},function(key,values){return Array.count(ubd_rgb)},{out:"order_count"})
