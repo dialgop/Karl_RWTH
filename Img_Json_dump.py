@@ -81,7 +81,7 @@ for i, entry in enumerate(db.find()):
 			text = ("%YAML:1.0\ndepth: !!opencv-matrix\n   rows: {}\n   cols: {}\n   dt: {}\n   data: ").format(depthSizeImg[0],depthSizeImg[1], type(img_d[0][0]))
 			f = open(out_d, 'a')
 			f.write(text)
-			yaml.dump(ymlList.tolist(), text_file, indent = 8)
+			yaml.dump(ymlList.tolist(), f, indent = 8)
 			f.close()
 
 			#The modified and improved Json Format
